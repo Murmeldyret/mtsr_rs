@@ -7,12 +7,13 @@ use futures::executor::block_on;
 use futures::{channel::mpsc, join};
 
 use std::fs::{self, DirEntry};
+use std::sync::Arc;
 use std::thread;
 
 fn main() {
-    let paths = detect_samples().unwrap();                                  //Returns the path of the samples.
-    let images = load_samples(paths);                                    //Returns loaded images
-    let edge_images = detect_edges(images);     //Returns edge detected images
+    let paths = detect_samples().unwrap(); //Returns the path of the samples.
+    let images = load_samples(paths); //Returns loaded images
+    let edge_images = detect_edges(images); //Returns edge detected images
     block_on(edge_images);
 }
 
@@ -43,34 +44,19 @@ fn load_samples(paths: Vec<DirEntry>) -> Vec<DynamicImage> {
     img
 }
 
-async fn detect_edges(
-    images: Vec<DynamicImage>,
-) -> (image::ImageBuffer<image::Luma<u8>, Vec<u8>>, image::ImageBuffer<image::Luma<u8>, Vec<u8>>, image::ImageBuffer<image::Luma<u8>, Vec<u8>>) {
-    let edges1 = thread_edges(images[0].to_luma8());
-    let edges2 = thread_edges(images[0].to_luma8());
-    let edges3 = thread_edges(images[0].to_luma8());
-
-    join!(edges1, edges2, edges3)
-
-    /*
-    println!("Processing edges...");
-    let mut children = Vec::with_capacity(images.len());
-    let mut edges = Vec::with_capacity(images.len());
+async fn detect_edges(images: Vec<DynamicImage>) {
+    
+    let mut handles = vec![];
 
     for i in 0..images.len() {
-        children[i] = async {
-            canny(&aimage, 30.0, 150.0);
-            pool.spawn_
-        }
-        println!("Working on {}/{} images.", &i + 1, images.len());
+        let aimages = Arc::new(images[i].to_luma8());
+        let handle = thread::spawn(move || {
+            canny(&aimages, 30.0, 150.0)
+        });
+        handles.push(handle);
     }
 
-    edges = join!(children[0]);
-    */
-}
-
-async fn thread_edges(
-    aimage: image::ImageBuffer<image::Luma<u8>, Vec<u8>>,
-) -> image::ImageBuffer<image::Luma<u8>, Vec<u8>> {
-    canny(&aimage, 30.0, 150.0)
+    for handle in handles {
+        handle.join().unwrap();
+    }
 }
